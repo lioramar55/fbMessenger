@@ -3,3 +3,6 @@ venv
 credentials.txt
 *.csv
 *.db
+FacebookGroupBot.spec
+build
+dist
