@@ -15,6 +15,7 @@ import os
 import time
 import random
 import pickle
+from ttkthemes import ThemedTk  # For better styling
 
 class FacebookMessengerAdapter:
     """Adapter class to integrate FacebookMessenger with our database and GUI"""
@@ -212,9 +213,15 @@ class FacebookMessengerAdapter:
 
 class MessengerBotGUI:
     def __init__(self):
-        self.root = tk.Tk()
+        self.root = ThemedTk(theme="arc")  # Use a modern theme
         self.root.title("Facebook Group Messenger Bot")
-        self.root.geometry("800x600")
+        self.root.geometry("900x700")  # Slightly larger window
+        
+        # Configure style
+        style = ttk.Style()
+        style.configure("Custom.TButton", padding=5)
+        style.configure("Success.TButton", background="green", padding=5)
+        style.configure("Warning.TButton", background="red", padding=5)
         
         self.db = MessageDatabase()
         self.is_running = False
@@ -225,7 +232,8 @@ class MessengerBotGUI:
         )
         self.message_queue = queue.Queue()
         self.captcha_frame = None
-        self.control_frame = None  # Add reference to control frame
+        self.control_frame = None
+        self.stats_frame = None  # New frame for statistics
         
         self.create_gui()
         self.load_saved_settings()
@@ -233,68 +241,97 @@ class MessengerBotGUI:
     def create_gui(self):
         # Create notebook for tabs
         notebook = ttk.Notebook(self.root)
-        notebook.pack(expand=True, fill='both', padx=5, pady=5)
+        notebook.pack(expand=True, fill='both', padx=10, pady=10)  # Increased padding
         
         # Main tab
         main_frame = ttk.Frame(notebook)
         notebook.add(main_frame, text='Main')
         
-        # Credentials frame
-        cred_frame = ttk.LabelFrame(main_frame, text="Facebook Credentials")
-        cred_frame.pack(fill='x', padx=5, pady=5)
+        # Credentials frame with improved styling
+        cred_frame = ttk.LabelFrame(main_frame, text="Facebook Credentials", padding=10)
+        cred_frame.pack(fill='x', padx=10, pady=5)
         
-        ttk.Label(cred_frame, text="Email:").grid(row=0, column=0, padx=5, pady=5)
+        # Grid configuration for better alignment
+        cred_frame.grid_columnconfigure(1, weight=1)
+        
+        ttk.Label(cred_frame, text="Email:").grid(row=0, column=0, padx=10, pady=5, sticky='e')
         self.email_var = tk.StringVar()
-        ttk.Entry(cred_frame, textvariable=self.email_var).grid(row=0, column=1, padx=5, pady=5, sticky='ew')
+        ttk.Entry(cred_frame, textvariable=self.email_var, width=40).grid(row=0, column=1, padx=10, pady=5, sticky='ew')
         
-        ttk.Label(cred_frame, text="Password:").grid(row=1, column=0, padx=5, pady=5)
+        ttk.Label(cred_frame, text="Password:").grid(row=1, column=0, padx=10, pady=5, sticky='e')
         self.password_var = tk.StringVar()
-        ttk.Entry(cred_frame, textvariable=self.password_var, show="*").grid(row=1, column=1, padx=5, pady=5, sticky='ew')
+        ttk.Entry(cred_frame, textvariable=self.password_var, show="*", width=40).grid(row=1, column=1, padx=10, pady=5, sticky='ew')
         
-        # Message frame
-        msg_frame = ttk.LabelFrame(main_frame, text="Message")
-        msg_frame.pack(fill='both', expand=True, padx=5, pady=5)
+        # Message frame with better spacing
+        msg_frame = ttk.LabelFrame(main_frame, text="Message", padding=10)
+        msg_frame.pack(fill='both', expand=True, padx=10, pady=5)
         
-        self.message_text = scrolledtext.ScrolledText(msg_frame, height=5)
+        self.message_text = scrolledtext.ScrolledText(msg_frame, height=5, font=('Segoe UI', 10))
         self.message_text.pack(fill='both', expand=True, padx=5, pady=5)
         
-        # CSV file frame
-        csv_frame = ttk.LabelFrame(main_frame, text="Profile List (CSV)")
-        csv_frame.pack(fill='x', padx=5, pady=5)
+        # CSV file frame with improved layout
+        csv_frame = ttk.LabelFrame(main_frame, text="Profile List (CSV)", padding=10)
+        csv_frame.pack(fill='x', padx=10, pady=5)
         
         self.csv_path_var = tk.StringVar()
         ttk.Entry(csv_frame, textvariable=self.csv_path_var, state='readonly').pack(side='left', fill='x', expand=True, padx=5, pady=5)
-        ttk.Button(csv_frame, text="Browse", command=self.browse_csv).pack(side='right', padx=5, pady=5)
+        ttk.Button(csv_frame, text="Browse", command=self.browse_csv, style="Custom.TButton").pack(side='right', padx=5, pady=5)
         
-        # Wait time frame
-        wait_frame = ttk.LabelFrame(main_frame, text="Wait Time Between Profiles (seconds)")
-        wait_frame.pack(fill='x', padx=5, pady=5)
+        # Wait time frame with better organization
+        wait_frame = ttk.LabelFrame(main_frame, text="Wait Time Between Profiles (seconds)", padding=10)
+        wait_frame.pack(fill='x', padx=10, pady=5)
         
-        # Min wait time
-        ttk.Label(wait_frame, text="Min:").grid(row=0, column=0, padx=5, pady=5)
+        # Grid configuration for wait times
+        wait_frame.grid_columnconfigure(1, weight=1)
+        wait_frame.grid_columnconfigure(3, weight=1)
+        
+        ttk.Label(wait_frame, text="Min:").grid(row=0, column=0, padx=10, pady=5)
         self.min_wait_var = tk.StringVar(value="15")
         ttk.Entry(wait_frame, textvariable=self.min_wait_var, width=5).grid(row=0, column=1, padx=5, pady=5)
         
-        # Max wait time
-        ttk.Label(wait_frame, text="Max:").grid(row=0, column=2, padx=5, pady=5)
+        ttk.Label(wait_frame, text="Max:").grid(row=0, column=2, padx=10, pady=5)
         self.max_wait_var = tk.StringVar(value="30")
         ttk.Entry(wait_frame, textvariable=self.max_wait_var, width=5).grid(row=0, column=3, padx=5, pady=5)
         
-        # Control frame
-        self.control_frame = ttk.Frame(main_frame)  # Store reference
-        self.control_frame.pack(fill='x', padx=5, pady=5)
+        # Stats frame - New addition
+        self.stats_frame = ttk.LabelFrame(main_frame, text="Statistics", padding=10)
+        self.stats_frame.pack(fill='x', padx=10, pady=5)
+        
+        # Progress bar and stats
+        self.progress_var = tk.DoubleVar()
+        self.progress_bar = ttk.Progressbar(self.stats_frame, variable=self.progress_var, maximum=100)
+        self.progress_bar.pack(fill='x', padx=5, pady=5)
+        
+        # Stats grid
+        stats_grid = ttk.Frame(self.stats_frame)
+        stats_grid.pack(fill='x', padx=5)
+        
+        # Statistics variables
+        self.total_var = tk.StringVar(value="Total: 0")
+        self.success_var = tk.StringVar(value="Success: 0")
+        self.failed_var = tk.StringVar(value="Failed: 0")
+        self.skipped_var = tk.StringVar(value="Skipped: 0")
+        
+        ttk.Label(stats_grid, textvariable=self.total_var).grid(row=0, column=0, padx=10)
+        ttk.Label(stats_grid, textvariable=self.success_var).grid(row=0, column=1, padx=10)
+        ttk.Label(stats_grid, textvariable=self.failed_var).grid(row=0, column=2, padx=10)
+        ttk.Label(stats_grid, textvariable=self.skipped_var).grid(row=0, column=3, padx=10)
+        
+        # Control frame with improved styling
+        self.control_frame = ttk.Frame(main_frame)
+        self.control_frame.pack(fill='x', padx=10, pady=5)
         
         # Left side controls
         left_controls = ttk.Frame(self.control_frame)
         left_controls.pack(side='left')
         
-        self.start_button = ttk.Button(left_controls, text="Start", command=self.toggle_bot)
+        self.start_button = ttk.Button(left_controls, text="Start", command=self.toggle_bot, style="Success.TButton")
         self.start_button.pack(side='left', padx=5)
         
-        ttk.Button(left_controls, text="Restart Fresh", command=self.restart_bot).pack(side='left', padx=5)
+        ttk.Button(left_controls, text="Restart Fresh", command=self.restart_bot, style="Custom.TButton").pack(side='left', padx=5)
         
         # Right side controls
-        ttk.Button(self.control_frame, text="Clear History", command=self.clear_history).pack(side='right', padx=5)
+        ttk.Button(self.control_frame, text="Clear History", command=self.clear_history, style="Warning.TButton").pack(side='right', padx=5)
         
         # Captcha frame - create it here but don't pack it yet
         self.captcha_frame = ttk.LabelFrame(main_frame, text="Security Verification", relief="raised", borderwidth=2)
@@ -471,17 +508,35 @@ class MessengerBotGUI:
             
         if messagebox.askyesno("Restart Bot", "This will clear all message history and start fresh. Continue?"):
             self.db.clear_history()
-            # Also clear cookies to force new login
-            self.db.clear_cookies("facebook.com")
             self.update_history_display()
             # Clear log panel
             self.clear_log()
             self.log("History cleared, starting fresh...")
             self.toggle_bot()
     
+    def update_stats(self, total, successful, failed, skipped):
+        """Update statistics display"""
+        self.total_var.set(f"Total: {total}")
+        self.success_var.set(f"Success: {successful}")
+        self.failed_var.set(f"Failed: {failed}")
+        self.skipped_var.set(f"Skipped: {skipped}")
+        
+        # Update progress bar
+        if total > 0:
+            progress = ((successful + failed + skipped) / total) * 100
+            self.progress_var.set(progress)
+        else:
+            self.progress_var.set(0)
+        
+        # Force update
+        self.root.update_idletasks()
+    
     def run_bot(self):
         """Run the bot in a separate thread"""
         try:
+            # Reset statistics
+            self.update_stats(0, 0, 0, 0)
+            
             # Get wait times
             try:
                 min_wait = float(self.min_wait_var.get())
@@ -496,7 +551,7 @@ class MessengerBotGUI:
             # Initialize FacebookMessenger
             self.fb_adapter.initialize()
             
-            # Login to Facebook - this is critical
+            # Login to Facebook
             login_success = self.fb_adapter.login_to_facebook(
                 self.email_var.get(),
                 self.password_var.get()
@@ -518,10 +573,13 @@ class MessengerBotGUI:
             message = self.message_text.get('1.0', 'end-1c').strip()
             
             # Process profiles
-            self.log(f"Found {len(profile_links)} profiles to message")
+            total = len(profile_links)
             successful = 0
             failed = 0
             skipped = 0
+            
+            self.log(f"Found {total} profiles to message")
+            self.update_stats(total, successful, failed, skipped)
             
             for i, profile in enumerate(profile_links, 1):
                 if not self.is_running:
@@ -531,9 +589,10 @@ class MessengerBotGUI:
                 if self.db.has_messaged_profile(profile):
                     self.log(f"Skipping {profile} (already messaged)")
                     skipped += 1
+                    self.update_stats(total, successful, failed, skipped)
                     continue
                 
-                self.log(f"\nProcessing profile {i}/{len(profile_links)}: {profile}")
+                self.log(f"\nProcessing profile {i}/{total}: {profile}")
                 success = self.fb_adapter.send_message(profile, message)
                 
                 if success:
@@ -543,19 +602,17 @@ class MessengerBotGUI:
                     failed += 1
                     self.log(f"❌ Failed to message {profile}")
                 
-                # Update history display
+                # Update statistics and history display
+                self.update_stats(total, successful, failed, skipped)
                 self.root.after(0, self.update_history_display)
                 
                 # Add delay between profiles
-                if self.is_running and i < len(profile_links):
+                if self.is_running and i < total:
                     delay = random.uniform(min_wait, max_wait)
                     self.log(f"Waiting {delay:.1f} seconds before next profile...")
                     time.sleep(delay)
             
             self.log(f"\nFinished!")
-            self.log(f"Successful: {successful}")
-            self.log(f"Failed: {failed}")
-            self.log(f"Skipped: {skipped}")
             
         except Exception as e:
             self.log(f"Error: {str(e)}")

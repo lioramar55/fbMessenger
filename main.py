@@ -24,12 +24,12 @@ import traceback
 UI_ELEMENTS = {
     'en': {
         'message_button': "//*[contains(text(), 'Message')]",
-        'message_box': "//div[@role='textbox' and @contenteditable='true' and @spellcheck='true']",
+        'message_box': "//div[@role='textbox' and @contenteditable='true' and @spellcheck='true' and @aria-label='Message']",
         'close_chat': "div[aria-label='Close chat']"
     },
     'he': {
         'message_button': "//*[contains(text(), 'הודעה')]",
-        'message_box': "//div[@role='textbox' and @contenteditable='true' and @spellcheck='true']",
+        'message_box': "//div[@role='textbox' and @contenteditable='true' and @spellcheck='true' and @aria-label='שליחת הודעה']",
         'close_chat': "div[aria-label=\"סגירת הצ'אט\"]"
     }
 }
