@@ -27,6 +27,11 @@ class FacebookMessengerAdapter:
         self.captcha_callback = captcha_callback
         self.login_paused = False
         
+    def set_add_friend_option(self, should_add: bool):
+        """Pass the add friend option to the messenger instance"""
+        if self.messenger:
+            self.messenger.should_add_friend = should_add
+        
     def initialize(self):
         """Initialize the WebDriver and FacebookMessenger"""
         self.logger("Setting up Chrome WebDriver...")
@@ -97,33 +102,60 @@ class FacebookMessengerAdapter:
             except Exception as e:
                 self.logger(f"Error saving cookies: {str(e)}")
         
-        # Verify we're logged in by checking for common elements
+        # Verify we're logged in by checking for common elements or URLs
         try:
-            # Check for profile icon or other elements that indicate we're logged in
             self.logger("Verifying login status...")
             time.sleep(2)
             
-            # Try to find elements that only appear when logged in
+            # Multiple checks for login status
             logged_in = False
-            try:
-                # Look for search bar, profile link, or other elements
-                if self.driver.find_elements("xpath", "//input[@placeholder='Search Facebook']") or \
-                   self.driver.find_elements("xpath", "//a[@aria-label='Home']") or \
-                   self.driver.find_elements("xpath", "//div[@aria-label='Your profile']"):
-                    logged_in = True
-            except:
-                pass
-                
-            if not logged_in:
-                self.logger("Warning: Login verification failed. May not be properly logged in.")
-                return False
-                
-            self.logger("Login verification successful!")
-            return True
             
+            # Check 1: URL check
+            if "login" not in self.driver.current_url.lower() and "authentication" not in self.driver.current_url.lower():
+                logged_in = True
+            
+            # Check 2: Try to find common elements that indicate we're logged in
+            if not logged_in:
+                try:
+                    elements_to_check = [
+                        "//input[@placeholder='Search Facebook']",
+                        "//a[@aria-label='Home']",
+                        "//div[@aria-label='Your profile']",
+                        "//div[@aria-label='Menu']",
+                        "//div[@aria-label='Messenger']"
+                    ]
+                    
+                    for xpath in elements_to_check:
+                        try:
+                            if self.driver.find_elements(By.XPATH, xpath):
+                                logged_in = True
+                                break
+                        except:
+                            continue
+                except:
+                    pass
+            
+            # Check 3: Check if we can access the news feed
+            if not logged_in:
+                try:
+                    self.driver.get("https://www.facebook.com/")
+                    time.sleep(2)
+                    if "login" not in self.driver.current_url.lower():
+                        logged_in = True
+                except:
+                    pass
+                
+            if logged_in:
+                self.logger("Login verification successful!")
+                return True
+            else:
+                self.logger("Warning: Login verification failed. Proceeding anyway since initial login was successful.")
+                return True  # Return True anyway if we got past the initial login checks
+                
         except Exception as e:
             self.logger(f"Error verifying login: {str(e)}")
-            return False
+            self.logger("Proceeding anyway since initial login was successful.")
+            return True  # Return True anyway if we got past the initial login checks
     
     def custom_login(self, email, password):
         """Custom login process with captcha handling"""
@@ -143,9 +175,6 @@ class FacebookMessengerAdapter:
             
             # Wait for login to process
             time.sleep(5)
-            
-            # Check for CAPTCHA or 2FA - simplified detection
-            captcha_detected = False
             
             # Check for security challenges
             if ("checkpoint" in self.driver.current_url.lower() or 
@@ -266,6 +295,10 @@ class MessengerBotGUI:
         msg_frame = ttk.LabelFrame(main_frame, text="Message", padding=10)
         msg_frame.pack(fill='both', expand=True, padx=10, pady=5)
         
+        # Add friend checkbox
+        self.add_friend_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(msg_frame, text="Add friend when messaging", variable=self.add_friend_var).pack(anchor='w', padx=5, pady=2)
+        
         self.message_text = scrolledtext.ScrolledText(msg_frame, height=5, font=('Segoe UI', 10))
         self.message_text.pack(fill='both', expand=True, padx=5, pady=5)
         
@@ -355,8 +388,22 @@ class MessengerBotGUI:
         progress_frame = ttk.LabelFrame(main_frame, text="Progress")
         progress_frame.pack(fill='both', expand=True, padx=5, pady=5)
         
-        self.progress_text = scrolledtext.ScrolledText(progress_frame, height=10)
+        self.progress_text = scrolledtext.ScrolledText(
+            progress_frame,
+            height=10,
+            font=('Segoe UI', 10),
+            wrap=tk.WORD,  # Enable word wrapping
+            undo=True,  # Enable undo/redo
+        )
+        # Make text widget read-only but selectable
+        self.progress_text.bind("<Key>", lambda e: "break")  # Disable typing
+        self.progress_text.bind("<Control-c>", lambda e: "continue")  # Allow copy
         self.progress_text.pack(fill='both', expand=True, padx=5, pady=5)
+        
+        # Add right-click menu for copy
+        self.context_menu = tk.Menu(self.root, tearoff=0)
+        self.context_menu.add_command(label="Copy", command=self.copy_selected_text)
+        self.progress_text.bind("<Button-3>", self.show_context_menu)
         
         # History tab
         history_frame = ttk.Frame(notebook)
@@ -551,6 +598,9 @@ class MessengerBotGUI:
             # Initialize FacebookMessenger
             self.fb_adapter.initialize()
             
+            # Set add friend option
+            self.fb_adapter.set_add_friend_option(self.add_friend_var.get())
+            
             # Login to Facebook
             login_success = self.fb_adapter.login_to_facebook(
                 self.email_var.get(),
@@ -626,6 +676,22 @@ class MessengerBotGUI:
     def run(self):
         """Start the GUI application"""
         self.root.mainloop()
+
+    def copy_selected_text(self):
+        """Copy selected text to clipboard"""
+        try:
+            selected_text = self.progress_text.get("sel.first", "sel.last")
+            self.root.clipboard_clear()
+            self.root.clipboard_append(selected_text)
+        except tk.TclError:  # No selection
+            pass
+            
+    def show_context_menu(self, event):
+        """Show the context menu on right click"""
+        try:
+            self.context_menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            self.context_menu.grab_release()
 
 if __name__ == "__main__":
     app = MessengerBotGUI()

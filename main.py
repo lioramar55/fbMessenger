@@ -25,12 +25,16 @@ UI_ELEMENTS = {
     'en': {
         'message_button': "//*[contains(text(), 'Message')]",
         'message_box': "//div[@role='textbox' and @contenteditable='true' and @spellcheck='true' and @aria-label='Message']",
-        'close_chat': "div[aria-label='Close chat']"
+        'close_chat': "div[aria-label='Close chat']",
+        'add_friend': "Add friend",
+        'cancel_request': "Cancel request"
     },
     'he': {
         'message_button': "//*[contains(text(), 'הודעה')]",
         'message_box': "//div[@role='textbox' and @contenteditable='true' and @spellcheck='true' and @aria-label='שליחת הודעה']",
-        'close_chat': "div[aria-label=\"סגירת הצ'אט\"]"
+        'close_chat': "div[aria-label=\"סגירת הצ'אט\"]",
+        'add_friend': "הוספת חבר",
+        'cancel_request': "בטל את הבקשה"
     }
 }
 
@@ -39,6 +43,7 @@ class FacebookMessenger:
         self.driver = driver
         self.wait = WebDriverWait(driver, 10)
         self.detected_language = 'en'  # Default language
+        self.should_add_friend = False  # Default value for add friend option
         
     def detect_interface_language(self) -> None:
         """Detect Facebook interface language using both document language attribute and UI element checks."""
@@ -198,6 +203,58 @@ class FacebookMessenger:
             print(f"⚠️ Error clicking element {xpath}: {str(e)}")
             return None
 
+    def set_add_friend_option(self, should_add: bool):
+        """Set whether to attempt adding friends when messaging"""
+        self.should_add_friend = should_add
+
+    def try_add_friend(self) -> bool:
+        """Attempt to add the profile as a friend if the option is enabled"""
+        try:
+            if not self.should_add_friend:
+                return False
+
+            print("🤝 Checking if we can add as friend...")
+            
+            # First check if there's already a cancel request button
+            cancel_xpath = f"//div[@aria-label='{UI_ELEMENTS[self.detected_language]['cancel_request']}']"
+            success, cancel_button = self.wait_for_element(cancel_xpath, timeout=2)
+            
+            if success and cancel_button:
+                print("⚠️ Friend request already sent")
+                return False
+                
+            # Look for add friend button
+            add_xpath = f"//div[@aria-label='{UI_ELEMENTS[self.detected_language]['add_friend']}']"
+            success, add_button = self.wait_for_element(add_xpath, timeout=5)
+            
+            if not success or not add_button:
+                # Try alternative approaches to find the add friend button
+                print("Trying alternative methods to find add friend button...")
+                
+                # Try by text content
+                add_text_xpath = f"//*[contains(text(), '{UI_ELEMENTS[self.detected_language]['add_friend']}')]"
+                success, add_button = self.wait_for_element(add_text_xpath, timeout=3)
+                
+                if not success or not add_button:
+                    print("⚠️ Add friend button not found")
+                    return False
+                    
+                add_xpath = add_text_xpath  # Use the text-based xpath for clicking
+                
+            # Try to click the add friend button using our existing method
+            add_button_clicked = self.find_and_click_element(add_xpath)
+            if add_button_clicked:
+                print("✅ Friend request sent")
+                time.sleep(random.uniform(1, 2))
+                return True
+            else:
+                print("⚠️ Could not click add friend button")
+                return False
+                
+        except Exception as e:
+            print(f"⚠️ Error while trying to add friend: {str(e)}")
+            return False
+
     def send_message_to_profile(self, profile: str, message: str) -> bool:
         """Send a message to a single profile with proper error handling and waits"""
         try:
@@ -209,6 +266,10 @@ class FacebookMessenger:
             
             # Detect language if not already detected
             self.detect_interface_language()
+            
+            # Try to add friend if option is enabled
+            if self.should_add_friend:
+                self.try_add_friend()
             
             print("🔍 Looking for message button...")
             # Click message button
