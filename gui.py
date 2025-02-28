@@ -18,6 +18,138 @@ import random
 import pickle
 from ttkthemes import ThemedTk  # For better styling
 
+class ScrollableFrame(ttk.Frame):
+    """A scrollable frame widget"""
+    def __init__(self, container, *args, **kwargs):
+        super().__init__(container, *args, **kwargs)
+        
+        # Create a canvas and scrollbar
+        self.canvas = tk.Canvas(self, highlightthickness=0)  # Remove canvas border
+        self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
+        
+        # Create the scrollable frame
+        self.scrollable_frame = ttk.Frame(self.canvas)
+        
+        # Configure the canvas
+        self.scrollable_frame.bind(
+            "<Configure>",
+            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        )
+        
+        # Add the frame to the canvas
+        self.canvas_frame = self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        
+        # Configure canvas scrolling
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+        
+        # Pack the canvas and scrollbar
+        self.canvas.pack(side="left", fill="both", expand=True)
+        self.scrollbar.pack(side="right", fill="y")
+        
+        # Bind mouse wheel
+        self.bind_all("<MouseWheel>", self._on_mousewheel)
+        
+        # Bind canvas resize
+        self.canvas.bind('<Configure>', self._on_canvas_configure)
+        
+        # Bind frame enter/leave for focus
+        self.bind('<Enter>', self._on_enter)
+        self.bind('<Leave>', self._on_leave)
+        
+        # Store the container for focus checks
+        self.container = container
+    
+    def _on_enter(self, event):
+        """Handle mouse enter event"""
+        if self.container.focus_get() is not None:
+            # Only bind if we're the active widget
+            self.bind_all("<MouseWheel>", self._on_mousewheel)
+    
+    def _on_leave(self, event):
+        """Handle mouse leave event"""
+        self.unbind_all("<MouseWheel>")
+    
+    def _on_mousewheel(self, event):
+        """Handle mouse wheel scrolling"""
+        if self.scrollbar.get() != (0.0, 1.0):  # Only scroll if there's something to scroll
+            self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+    
+    def _on_canvas_configure(self, event):
+        """Handle canvas resize"""
+        # Update the scrollable region to encompass the inner frame
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        # Update the frame width to match the canvas
+        self.canvas.itemconfig(self.canvas_frame, width=event.width)
+
+class CaptchaDialog(tk.Toplevel):
+    """A dialog window for handling CAPTCHA verification"""
+    def __init__(self, parent, on_continue):
+        super().__init__(parent)
+        
+        # Configure dialog
+        self.title("Security Verification Required")
+        self.geometry("400x200")
+        self.resizable(False, False)
+        self.transient(parent)
+        
+        # Make dialog modal
+        self.grab_set()
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+        
+        # Center the dialog
+        self.update_idletasks()
+        width = self.winfo_width()
+        height = self.winfo_height()
+        x = (self.winfo_screenwidth() // 2) - (width // 2)
+        y = (self.winfo_screenheight() // 2) - (height // 2)
+        self.geometry(f'+{x}+{y}')
+        
+        # Create widgets with improved styling
+        frame = ttk.Frame(self, padding="20 20 20 20")
+        frame.pack(fill='both', expand=True)
+        
+        ttk.Label(
+            frame,
+            text="⚠️ Security Verification Required",
+            font=("Arial", 12, "bold"),
+            foreground="red"
+        ).pack(pady=(0, 20))
+        
+        ttk.Label(
+            frame,
+            text="Please complete the verification in the browser window.\nOnce completed, click Continue below.",
+            justify="center"
+        ).pack(pady=(0, 20))
+        
+        ttk.Button(
+            frame,
+            text="Continue",
+            command=self._on_continue,
+            style="Custom.TButton",
+            width=20
+        ).pack(pady=(0, 10))
+        
+        self.on_continue = on_continue
+        
+        # Set focus to the dialog
+        self.focus_set()
+    
+    def _on_continue(self):
+        """Handle continue button click"""
+        self.grab_release()
+        self.on_continue()
+        self.destroy()
+    
+    def _on_close(self):
+        """Handle dialog close"""
+        if messagebox.askyesno(
+            "Cancel Verification",
+            "Are you sure you want to cancel the verification process?",
+            parent=self
+        ):
+            self.grab_release()
+            self.destroy()
+
 class FacebookMessengerAdapter:
     """Adapter class to integrate FacebookMessenger with our database and GUI"""
     def __init__(self, db, logger_callback=None, captcha_callback=None):
@@ -295,19 +427,23 @@ class MessengerBotGUI:
         self.stats_frame = None  # New frame for statistics
         
         self.create_gui()
+        self._configure_scrolling()  # Configure scrolling after GUI creation
         self.load_saved_settings()
         
     def create_gui(self):
         # Create notebook for tabs
         notebook = ttk.Notebook(self.root)
-        notebook.pack(expand=True, fill='both', padx=10, pady=10)  # Increased padding
+        notebook.pack(expand=True, fill='both', padx=10, pady=10)
         
-        # Main tab
-        main_frame = ttk.Frame(notebook)
+        # Main tab with scrollable frame
+        main_frame = ScrollableFrame(notebook)
         notebook.add(main_frame, text='Main')
         
+        # Use the scrollable frame as the parent
+        content_frame = main_frame.scrollable_frame
+        
         # Credentials frame with improved styling
-        cred_frame = ttk.LabelFrame(main_frame, text="Facebook Credentials", padding=10)
+        cred_frame = ttk.LabelFrame(content_frame, text="Facebook Credentials", padding=10)
         cred_frame.pack(fill='x', padx=10, pady=5)
         
         # Grid configuration for better alignment
@@ -322,7 +458,7 @@ class MessengerBotGUI:
         ttk.Entry(cred_frame, textvariable=self.password_var, show="*", width=40).grid(row=1, column=1, padx=10, pady=5, sticky='ew')
         
         # Message frame with better spacing
-        msg_frame = ttk.LabelFrame(main_frame, text="Message", padding=10)
+        msg_frame = ttk.LabelFrame(content_frame, text="Message", padding=10)
         msg_frame.pack(fill='both', expand=True, padx=10, pady=5)
         
         # Add friend checkbox
@@ -333,7 +469,7 @@ class MessengerBotGUI:
         self.message_text.pack(fill='both', expand=True, padx=5, pady=5)
         
         # CSV file frame with improved layout
-        csv_frame = ttk.LabelFrame(main_frame, text="Profile List (CSV)", padding=10)
+        csv_frame = ttk.LabelFrame(content_frame, text="Profile List (CSV)", padding=10)
         csv_frame.pack(fill='x', padx=10, pady=5)
         
         self.csv_path_var = tk.StringVar()
@@ -341,7 +477,7 @@ class MessengerBotGUI:
         ttk.Button(csv_frame, text="Browse", command=self.browse_csv, style="Custom.TButton").pack(side='right', padx=5, pady=5)
         
         # Wait time frame with better organization
-        wait_frame = ttk.LabelFrame(main_frame, text="Wait Time Between Profiles (seconds)", padding=10)
+        wait_frame = ttk.LabelFrame(content_frame, text="Wait Time Between Profiles (seconds)", padding=10)
         wait_frame.pack(fill='x', padx=10, pady=5)
         
         # Grid configuration for wait times
@@ -357,7 +493,7 @@ class MessengerBotGUI:
         ttk.Entry(wait_frame, textvariable=self.max_wait_var, width=5).grid(row=0, column=3, padx=5, pady=5)
         
         # Stats frame - New addition
-        self.stats_frame = ttk.LabelFrame(main_frame, text="Statistics", padding=10)
+        self.stats_frame = ttk.LabelFrame(content_frame, text="Statistics", padding=10)
         self.stats_frame.pack(fill='x', padx=10, pady=5)
         
         # Progress bar and stats
@@ -381,7 +517,7 @@ class MessengerBotGUI:
         ttk.Label(stats_grid, textvariable=self.skipped_var).grid(row=0, column=3, padx=10)
         
         # Control frame with improved styling
-        self.control_frame = ttk.Frame(main_frame)
+        self.control_frame = ttk.Frame(content_frame)
         self.control_frame.pack(fill='x', padx=10, pady=5)
         
         # Left side controls
@@ -397,7 +533,7 @@ class MessengerBotGUI:
         ttk.Button(self.control_frame, text="Clear History", command=self.clear_history, style="Warning.TButton").pack(side='right', padx=5)
         
         # Captcha frame - create it here but don't pack it yet
-        self.captcha_frame = ttk.LabelFrame(main_frame, text="Security Verification", relief="raised", borderwidth=2)
+        self.captcha_frame = ttk.LabelFrame(content_frame, text="Security Verification", relief="raised", borderwidth=2)
         
         captcha_label = ttk.Label(
             self.captcha_frame, 
@@ -464,28 +600,25 @@ class MessengerBotGUI:
         self.update_history_display()
     
     def handle_captcha(self, show):
-        """Show or hide the captcha frame"""
+        """Show or hide the captcha dialog"""
         if show:
             self.log("⚠️ CAPTCHA detected! Complete it in the browser, then click 'Continue'")
             
-            # Remove the captcha frame if it's already showing
-            self.captcha_frame.pack_forget()
-            
-            # Show the captcha frame between control_frame and progress_frame
-            self.captcha_frame.pack(after=self.control_frame, fill='x', padx=5, pady=5)
+            # Create and show the captcha dialog
+            dialog = CaptchaDialog(self.root, self.resume_after_captcha)
             
             # Bring window to front to alert user
             self.root.lift()
             self.root.attributes('-topmost', True)
             self.root.after_idle(self.root.attributes, '-topmost', False)
         else:
-            self.captcha_frame.pack_forget()
+            # No need to hide anything since we're using a dialog
+            pass
     
     def resume_after_captcha(self):
         """Resume the bot after captcha is solved"""
         self.log("✅ Continuing after verification...")
         self.fb_adapter.resume_after_captcha()
-        self.captcha_frame.pack_forget()
         
         # Force update the GUI to ensure changes are visible
         self.root.update_idletasks()
@@ -726,6 +859,24 @@ class MessengerBotGUI:
             self.context_menu.tk_popup(event.x_root, event.y_root)
         finally:
             self.context_menu.grab_release()
+
+    def _configure_scrolling(self):
+        """Configure scrolling behavior for the main frame"""
+        def _on_mousewheel(event):
+            # Get the current widget under the mouse
+            widget = event.widget
+            while widget is not None:
+                if isinstance(widget, ScrollableFrame):
+                    widget.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+                    break
+                widget = widget.master
+        
+        # Bind mousewheel to all frames
+        for widget in self.root.winfo_children():
+            if isinstance(widget, ttk.Notebook):
+                for tab in widget.winfo_children():
+                    if isinstance(tab, ScrollableFrame):
+                        tab.bind_all("<MouseWheel>", _on_mousewheel)
 
 if __name__ == "__main__":
     app = MessengerBotGUI()
