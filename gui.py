@@ -10,6 +10,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
+from webdriver_manager.core.os_manager import ChromeType
 import pandas as pd
 import os
 import time
@@ -37,8 +38,37 @@ class FacebookMessengerAdapter:
         self.logger("Setting up Chrome WebDriver...")
         options = webdriver.ChromeOptions()
         options.add_argument("--start-maximized")
-        service = Service(ChromeDriverManager().install())
-        self.driver = webdriver.Chrome(service=service, options=options)
+        
+        try:
+            # Try using webdriver-manager with explicit Chrome version
+            from selenium.webdriver.chrome.service import Service
+            from webdriver_manager.chrome import ChromeDriverManager
+            from webdriver_manager.core.os_manager import ChromeType
+            
+            # Get current Chrome version and download matching driver
+            service = Service(ChromeDriverManager(chrome_type=ChromeType.GOOGLE).install())
+            self.driver = webdriver.Chrome(service=service, options=options)
+        except Exception as e:
+            self.logger(f"Error with automatic ChromeDriver: {str(e)}")
+            
+            # Fallback to manually specified ChromeDriver
+            try:
+                import os
+                # Look for chromedriver in the current directory or use absolute path
+                driver_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "chromedriver.exe")
+                
+                if not os.path.exists(driver_path):
+                    self.logger(f"ChromeDriver not found at: {driver_path}")
+                    self.logger("Please download the appropriate ChromeDriver from: https://chromedriver.chromium.org/downloads")
+                    self.logger("Make sure to match it with your Chrome browser version")
+                    raise FileNotFoundError(f"ChromeDriver not found at: {driver_path}")
+                
+                service = Service(executable_path=driver_path)
+                self.driver = webdriver.Chrome(service=service, options=options)
+            except Exception as inner_e:
+                self.logger(f"Failed to initialize ChromeDriver: {str(inner_e)}")
+                raise
+        
         self.messenger = FacebookMessenger(self.driver)
         return self.driver, self.messenger
         

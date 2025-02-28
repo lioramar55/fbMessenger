@@ -1,5 +1,7 @@
-selenium==4.18.1
-pandas==2.2.1
-webdriver_manager==4.0.1
-pyinstaller==6.4.0
-ttkthemes==3.2.2
+numpy>=1.24.3; platform_system=="Windows"
+pandas>=2.0.2; platform_system=="Windows"
+selenium>=4.9.1
+webdriver_manager>=3.8.6
+ttkthemes>=3.2.2
+pyinstaller>=5.10.1
+packaging>=23.0
