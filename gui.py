@@ -384,27 +384,6 @@ class MessengerBotGUI:
         )
         self.resume_button.pack(pady=5)
         
-        # Progress frame
-        progress_frame = ttk.LabelFrame(main_frame, text="Progress")
-        progress_frame.pack(fill='both', expand=True, padx=5, pady=5)
-        
-        self.progress_text = scrolledtext.ScrolledText(
-            progress_frame,
-            height=10,
-            font=('Segoe UI', 10),
-            wrap=tk.WORD,  # Enable word wrapping
-            undo=True,  # Enable undo/redo
-        )
-        # Make text widget read-only but selectable
-        self.progress_text.bind("<Key>", lambda e: "break")  # Disable typing
-        self.progress_text.bind("<Control-c>", lambda e: "continue")  # Allow copy
-        self.progress_text.pack(fill='both', expand=True, padx=5, pady=5)
-        
-        # Add right-click menu for copy
-        self.context_menu = tk.Menu(self.root, tearoff=0)
-        self.context_menu.add_command(label="Copy", command=self.copy_selected_text)
-        self.progress_text.bind("<Button-3>", self.show_context_menu)
-        
         # History tab
         history_frame = ttk.Frame(notebook)
         notebook.add(history_frame, text='History')
@@ -428,6 +407,28 @@ class MessengerBotGUI:
         scrollbar = ttk.Scrollbar(history_frame, orient='vertical', command=self.history_tree.yview)
         scrollbar.pack(side='right', fill='y')
         self.history_tree.configure(yscrollcommand=scrollbar.set)
+        
+        # Logs tab - NEW
+        logs_frame = ttk.Frame(notebook)
+        notebook.add(logs_frame, text='Logs')
+        
+        # Create scrolled text for logs
+        self.progress_text = scrolledtext.ScrolledText(
+            logs_frame,
+            height=10,
+            font=('Segoe UI', 10),
+            wrap=tk.WORD,  # Enable word wrapping
+            undo=True,  # Enable undo/redo
+        )
+        # Make text widget read-only but selectable
+        self.progress_text.bind("<Key>", lambda e: "break")  # Disable typing
+        self.progress_text.bind("<Control-c>", lambda e: "continue")  # Allow copy
+        self.progress_text.pack(fill='both', expand=True, padx=5, pady=5)
+        
+        # Add right-click menu for copy
+        self.context_menu = tk.Menu(self.root, tearoff=0)
+        self.context_menu.add_command(label="Copy", command=self.copy_selected_text)
+        self.progress_text.bind("<Button-3>", self.show_context_menu)
         
         # Update history display
         self.update_history_display()
@@ -467,6 +468,7 @@ class MessengerBotGUI:
         csv_path = self.db.get_setting('csv_path', '')
         min_wait = self.db.get_setting('min_wait', '15')
         max_wait = self.db.get_setting('max_wait', '30')
+        add_friend = self.db.get_setting('add_friend', 'False')
         
         self.email_var.set(email)
         self.password_var.set(password)
@@ -474,6 +476,7 @@ class MessengerBotGUI:
         self.csv_path_var.set(csv_path)
         self.min_wait_var.set(min_wait)
         self.max_wait_var.set(max_wait)
+        self.add_friend_var.set(add_friend.lower() == 'true')
     
     def save_settings(self):
         """Save current settings to database"""
@@ -483,6 +486,7 @@ class MessengerBotGUI:
         self.db.save_setting('csv_path', self.csv_path_var.get())
         self.db.save_setting('min_wait', self.min_wait_var.get())
         self.db.save_setting('max_wait', self.max_wait_var.get())
+        self.db.save_setting('add_friend', str(self.add_friend_var.get()))
     
     def browse_csv(self):
         """Open file dialog to select CSV file"""
